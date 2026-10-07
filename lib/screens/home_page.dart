@@ -3,12 +3,18 @@ import 'package:provider/provider.dart';
 import '../models/item.dart';
 import '../models/cart_model.dart';
 import '../repositories/item_repository.dart';
+import '../repositories/favorites_repository.dart';
 import '../services/gemini_service.dart';
 import 'checkout_page.dart';
 
 class HomePage extends StatefulWidget {
   final ItemRepository repository;
-  const HomePage({super.key, required this.repository});
+  final FavoritesRepository favoritesRepository;
+  const HomePage({
+    super.key,
+    required this.repository,
+    required this.favoritesRepository,
+  });
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -21,6 +27,21 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _itemsFuture = widget.repository.getItems();
+  }
+
+  Future<void> _addFavorite(Item item) async {
+    String message;
+    try {
+      await widget.favoritesRepository.addFavorite(item.id, item.title, item.price, item.imageUrl);
+      message = 'เพิ่ม "${item.title}" ในรายการโปรดแล้ว';
+    } catch (e) {
+      message = 'บันทึกรายการโปรดไม่สำเร็จ กรุณาลองใหม่';
+    }
+    // รอให้ Flutter Web render frame ก่อนแสดง SnackBar เหมือนปุ่มตะกร้า
+    await Future.delayed(const Duration(milliseconds: 100));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _sanitizeText(String input) {
@@ -62,7 +83,7 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      // ปุ่มทดสอบ Gemini ชั่วคราว (ขั้นตอนที่ 2.3) พร้อมแก้ปัญหา SnackBar บน Flutter Web
+      // ปุ่มทดสอบ Gemini ชั่วคราว พร้อมแก้ปัญหา SnackBar บน Flutter Web
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.auto_awesome),
         label: const Text('ทดสอบ Gemini'),
@@ -143,17 +164,27 @@ class _HomePageState extends State<HomePage> {
                 ),
                 title: Text(item.title),
                 subtitle: Text('${item.price} บาท'),
-                trailing: IconButton(
-                  icon: const Icon(Icons.add_shopping_cart),
-                  onPressed: () async {
-                    context.read<CartModel>().add(item);
-                    await Future.delayed(const Duration(milliseconds: 100));
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).clearSnackBars();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('เพิ่ม "${item.title}" ลงตะกร้าแล้ว')),
-                    );
-                  },
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.favorite_border),
+                      tooltip: 'เพิ่มในรายการโปรด',
+                      onPressed: () => _addFavorite(item),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add_shopping_cart),
+                      onPressed: () async {
+                        context.read<CartModel>().add(item);
+                        await Future.delayed(const Duration(milliseconds: 100));
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).clearSnackBars();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('เพิ่ม "${item.title}" ลงตะกร้าแล้ว')),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               );
             },

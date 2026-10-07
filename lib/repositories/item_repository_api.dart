@@ -5,7 +5,9 @@ import '../models/item.dart';
 import 'item_repository.dart';
 
 class ItemRepositoryApi implements ItemRepository {
-  static const _baseUrl = 'https://fakestoreapi.com/products';
+  // fakestoreapi.com ล่ม (ตอบ 521) มาตั้งแต่ 6 ต.ค. 2026 จึงใช้ DummyJSON แทน
+  // ฟิลด์ id/title/price/description/category เหมือนกัน ต่างแค่ห่อ List ไว้ใน key 'products'
+  static const _baseUrl = 'https://dummyjson.com/products?limit=20';
 
   @override
   Future<List<Item>> getItems() async {
@@ -15,7 +17,8 @@ class ItemRepositoryApi implements ItemRepository {
       final response = await http.get(uri).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        final List<dynamic> data = body['products'] as List<dynamic>;
         return data.map((e) => Item.fromJson(e as Map<String, dynamic>)).toList();
       }
       throw Exception('ไม่สามารถโหลดรายการสินค้าได้ (สถานะ ${response.statusCode})');

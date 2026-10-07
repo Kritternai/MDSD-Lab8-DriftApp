@@ -21,7 +21,8 @@ class Item {
     final price = (json['price'] as num).toDouble();
     final description = json['description'] as String;
     final category = json['category'] as String;
-    final imageUrl = json['image'] as String; // key 'image' ไม่ตรงกับชื่อ field imageUrl
+    // Fake Store ใช้ key 'image' ส่วน DummyJSON ใช้ 'thumbnail'
+    final imageUrl = (json['image'] ?? json['thumbnail']) as String;
 
     return Item(
       id: id,

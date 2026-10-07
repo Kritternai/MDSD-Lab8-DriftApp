@@ -2,10 +2,13 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/listing_draft.dart';
+import '../repositories/listing_draft_repository.dart';
 import '../services/gemini_vision_service.dart';
+import 'my_drafts_page.dart';
 
 class SellItemPage extends StatefulWidget {
-  const SellItemPage({super.key});
+  final ListingDraftRepository draftRepository;
+  const SellItemPage({super.key, required this.draftRepository});
 
   @override
   State<SellItemPage> createState() => _SellItemPageState();
@@ -25,15 +28,13 @@ class _SellItemPageState extends State<SellItemPage> {
   Uint8List? _imageBytes;
 
   bool _isAnalyzing = false;
+  bool _isSaving = false;
   String? _errorMessage;
   ListingDraft? _draft;
 
   final _titleController = TextEditingController();
   final _categoryController = TextEditingController();
   final _descriptionController = TextEditingController();
-
-  // ร่างประกาศที่ผู้ใช้ยืนยันแล้ว เก็บไว้ใน State ก่อน (บันทึกถาวรในสัปดาห์ที่ 8)
-  final List<ListingDraft> _confirmedDrafts = [];
 
   @override
   void dispose() {
@@ -135,9 +136,15 @@ class _SellItemPageState extends State<SellItemPage> {
         ),
         const SizedBox(height: 16),
         FilledButton.icon(
-          onPressed: _confirmDraft,
-          icon: const Icon(Icons.check),
-          label: const Text('ยืนยันร่างประกาศ'),
+          onPressed: _isSaving ? null : _confirmDraft,
+          icon: _isSaving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.check),
+          label: Text(_isSaving ? 'กำลังบันทึก...' : 'ยืนยันร่างประกาศ'),
         ),
       ],
     );
@@ -150,30 +157,53 @@ class _SellItemPageState extends State<SellItemPage> {
       description: _descriptionController.text.trim(),
     );
 
-    setState(() {
-      _confirmedDrafts.add(finalDraft);
-      _selectedImage = null;
-      _imageBytes = null;
-      _draft = null;
-      _errorMessage = null;
-      _titleController.clear();
-      _categoryController.clear();
-      _descriptionController.clear();
-    });
+    setState(() => _isSaving = true);
+    String message;
+    try {
+      // บันทึกลง SQLite แทนการเก็บใน List ของ State ปิดแอปแล้วร่างยังอยู่
+      await widget.draftRepository.saveDraft(finalDraft, _selectedImage!.path);
+      message = 'บันทึกร่างประกาศเรียบร้อยแล้ว';
+      setState(() {
+        _selectedImage = null;
+        _imageBytes = null;
+        _draft = null;
+        _errorMessage = null;
+        _titleController.clear();
+        _categoryController.clear();
+        _descriptionController.clear();
+      });
+    } catch (e) {
+      // เช่น ชื่อประกาศว่างหรือยาวเกิน 100 ตัวอักษร ซึ่งขัดกับ withLength ของตาราง
+      message = 'บันทึกร่างไม่สำเร็จ ตรวจสอบว่าชื่อประกาศไม่ว่างและยาวไม่เกิน 100 ตัวอักษร';
+    } finally {
+      setState(() => _isSaving = false);
+    }
 
     // รอ 100ms ให้ Flutter Web render frame ให้พร้อมก่อนแสดง SnackBar
     await Future.delayed(const Duration(milliseconds: 100));
     if (!mounted) return;
     ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('บันทึกร่างประกาศเรียบร้อยแล้ว')),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('ลงประกาศขายสินค้า')),
+      appBar: AppBar(
+        title: const Text('ลงประกาศขายสินค้า'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'ร่างประกาศของฉัน',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => MyDraftsPage(repository: widget.draftRepository),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(

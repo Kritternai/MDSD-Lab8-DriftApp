@@ -1,0 +1,10 @@
+import '../database/app_database.dart';
+
+abstract class FavoritesRepository {
+  Future<void> addFavorite(int itemId, String title, double price, String imageUrl);
+
+  /// เรียงจากสินค้าที่กดถูกใจล่าสุดก่อน
+  Future<List<FavoriteItem>> getAllFavorites();
+
+  Future<void> removeFavorite(int itemId);
+}
